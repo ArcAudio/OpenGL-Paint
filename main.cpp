@@ -12,7 +12,7 @@ void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void processInput(GLFWwindow *window);
-void OnEndFrame(GLint pingTex, GLint pongTex, GLint pingFBO, GLint pongFBO);
+void OnEndFrame(GLuint& pingTex, GLuint& pongTex, GLuint& pingFBO, GLuint& pongFBO);
 unsigned int loadTexture(const char *path);
 
 // settings
@@ -37,8 +37,8 @@ int main()
     // glfw: initialize and configure
     // ------------------------------
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     
 #ifdef __APPLE__
@@ -140,7 +140,7 @@ int main()
     unsigned int pingTex;
     glGenTextures(1, &pingTex);
     glBindTexture(GL_TEXTURE_2D, pingTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingTex, 0);
@@ -156,18 +156,18 @@ int main()
     unsigned int pongTex;
     glGenTextures(1, &pongTex);
     glBindTexture(GL_TEXTURE_2D, pongTex);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_FLOAT, NULL);
     // set texture filtering parameters
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, pongTex, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pongTex, 0);
     
-    unsigned int rbo;
-    glGenRenderbuffers(1, &rbo);
-    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT); // use a single renderbuffer object for both a depth AND stencil buffer.
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
-    
+//    unsigned int rbo;
+//    glGenRenderbuffers(1, &rbo);
+//    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+//    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT); // use a single renderbuffer object for both a depth AND stencil buffer.
+//    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo); // now actually attach it
+//
     /// How does the render buffer know which framebuffer to use?
 
     // now that we actually created the framebuffer and added all attachments we want to check if it is actually complete now
@@ -193,16 +193,21 @@ int main()
         // -----
         processInput(window);
         
-        // render
+        // renderPass 1
         // ------
         ////////////////
         // bind to framebuffer and draw scene as we normally would to color texture
+        
         glBindFramebuffer(GL_FRAMEBUFFER, pingFBO);
+        //glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, pongTex);
+        
         glEnable(GL_DEPTH_TEST); // enable depth testing (is disabled for rendering screen-space quad)
         // make sure we clear the framebuffer's content
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         // render container
+        //glDisable(GL_DEPTH_TEST);
         ourShader.use();
         float timeValue = glfwGetTime();
         ourShader.setFloat("iTime", timeValue);
@@ -211,21 +216,33 @@ int main()
         ourShader.setFloat("mouseX", mX);
         ourShader.setFloat("mouseY", mY);
         glBindVertexArray(VAO);
-        glBindTexture(GL_TEXTURE_2D, pongTex); // is attached to GL_COLOR_ATTACHMENT1 in framebuffer
+        
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
         // now bind back to default framebuffer and draw a quad plane with the attached framebuffer color texture
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        //glBindFramebuffer(GL_FRAMEBUFFER, pongFBO);
+        //glDrawBuffer(GL_COLOR_ATTACHMENT1);
+        // renderPass 2
+        // ------
+        ////////////////
+        
         glDisable(GL_DEPTH_TEST); // disable depth test so screen-space quad isn't discarded due to depth test.
         // clear all relevant buffers
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f); // set clear color to white (not really necessery actually, since we won't be able to see behind the quad anyways)
         glClear(GL_COLOR_BUFFER_BIT);
+        
         screenShader.use();
         screenShader.setInt("swidth", swidth);
         screenShader.setInt("sheight", sheight);
         glBindVertexArray(quadVAO);
+        
+        //glBindFramebuffer(GL_FRAMEBUFFER, pingFBO);
+        //glDrawBuffer(GL_COLOR_ATTACHMENT1);
+        
         glBindTexture(GL_TEXTURE_2D, pingTex);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         OnEndFrame(pingTex,pongTex,pingFBO,pongFBO); // swap buffers and textures at end of frame
@@ -245,7 +262,7 @@ int main()
     return 0;
 }
 
-void OnEndFrame(GLint pingTex, GLint pongTex, GLint pingFBO, GLint pongFBO)
+void OnEndFrame(GLuint& pingTex, GLuint& pongTex, GLuint& pingFBO, GLuint& pongFBO)
 {
     std::swap(pingFBO, pongFBO);
     std::swap(pingTex, pongTex);

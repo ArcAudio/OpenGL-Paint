@@ -22,8 +22,19 @@ void main()
     vec2 fragCoord = vec2(gl_FragCoord.xy);
     vec2 uv = fragCoord/iResolution.xy;
     vec2 iMouse = vec2(mouseX,1-mouseY+sheight);
-
+    
+    vec4 average = (
+                    texture(texture1,(fragCoord+vec2(1,0))/iResolution.xy)+
+                    texture(texture1,(fragCoord+vec2(0,1))/iResolution.xy)+
+                    texture(texture1,(fragCoord-vec2(1,0))/iResolution.xy)+
+                    texture(texture1,(fragCoord-vec2(0,1))/iResolution.xy))/4.;
+    
     fragColor = texture(texture1,fragCoord/iResolution.xy);
-    if (length(iMouse.xy-fragCoord) < 10.) fragColor = vec4(1.);
+    
+    fragColor.z += average.x - fragColor.x;
+    //fragColor.y += average.x - fragColor.x - sign(fragColor.x);
+    fragColor.x += (fragColor.z*0.01f);
+    
+    if (length(iMouse.xy-fragCoord) < 10.) fragColor.x = 1.;
 
 }
